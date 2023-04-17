@@ -1,0 +1,5 @@
+name = "SeqOpt"
+uuid = "79dfa559-b203-42c8-b73e-25bbd7a8c2e6"
+authors = ["Benoît Legat <benoit.legat@gmail.com>"]
+repo = "https://github.com/blegat/SeqOpt.jl.git"
+version = "0.0.1"
