@@ -3,6 +3,8 @@
 [![Build Status](https://github.com/blegat/SeqOpt.jl/workflows/CI/badge.svg?branch=master)](https://github.com/blegat/SeqOpt.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/blegat/SeqOpt.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/blegat/SeqOpt.jl)
 
+**WARNING**: This package is still at its early stage of development.
+
 [SeqOpt.jl](https://github.com/blegat/SeqOpt.jl) is a sequential solver for nonlinear optimization.
 It implements a generalization of [Sequential quadratic programming](https://en.wikipedia.org/wiki/Sequential_quadratic_programming) to nonlinear conic programs developed in:
 
@@ -14,10 +16,12 @@ It implements a generalization of [Sequential quadratic programming](https://en.
 
 ## Installation
 
-Install MOA using `Pkg.add`:
+SeqOpt currently relies on the in-development PR https://github.com/jump-dev/MathOptInterface.jl/pull/2059.
+Install SeqOpt using `Pkg.add`:
 
 ```julia
 import Pkg
+Pkg.add(PackageSpec(name="MathOptInterface", rev="od/nlp-expr"))
 Pkg.add("https://github.com/blegat/SeqOpt.jl")
 ```
 
@@ -38,4 +42,3 @@ linearized version of your optimization problem.
 ## Citing
 
 See [CITATION.bib](https://github.com/blegat/SeqOpt.jl/blob/master/CITATION.bib).
-

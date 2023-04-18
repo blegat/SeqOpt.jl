@@ -40,6 +40,11 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
+      - name: MOI#od/nlp-expr
+        shell: julia --project=@. {0}
+        run: |
+          using Pkg
+          Pkg.add(PackageSpec(name="MathOptInterface", rev="od/nlp-expr"))
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
         with:
