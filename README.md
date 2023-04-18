@@ -1,7 +1,7 @@
 # SeqOpt.jl
 
-[![Build Status](https://github.com/blegat/SeqOpt.jl/workflows/CI/badge.svg?branch=master)](https://github.com/blegat/SeqOpt.jl/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/blegat/SeqOpt.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/blegat/SeqOpt.jl)
+[![Build Status](https://github.com/blegat/SeqOpt.jl/workflows/CI/badge.svg?branch=main)](https://github.com/blegat/SeqOpt.jl/actions?query=workflow%3ACI)
+[![codecov](https://codecov.io/gh/blegat/SeqOpt.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/blegat/SeqOpt.jl)
 
 **WARNING**: This package is still at its early stage of development.
 
@@ -12,7 +12,7 @@ It implements a generalization of [Sequential quadratic programming](https://en.
 
 ## License
 
-`SeqOpt.jl` is licensed under the [MIT License](https://github.com/blegat/SeqOpt.jl/blob/master/LICENSE.md).
+`SeqOpt.jl` is licensed under the [MIT License](https://github.com/blegat/SeqOpt.jl/blob/main/LICENSE.md).
 
 ## Installation
 
@@ -41,4 +41,4 @@ linearized version of your optimization problem.
 
 ## Citing
 
-See [CITATION.bib](https://github.com/blegat/SeqOpt.jl/blob/master/CITATION.bib).
+See [CITATION.bib](https://github.com/blegat/SeqOpt.jl/blob/main/CITATION.bib).
