@@ -1,0 +1,5 @@
+[deps]
+HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
+MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
+SeqOpt = "79dfa559-b203-42c8-b73e-25bbd7a8c2e6"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
