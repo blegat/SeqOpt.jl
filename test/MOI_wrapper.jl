@@ -52,7 +52,8 @@ You can also write new tests for solver-specific functionality. Write each new
 test as a function with a name beginning with `test_`.
 """
 function test_SolverName()
-    @test MOI.get(SeqOpt.Optimizer(HiGHS.Optimizer), MOI.SolverName()) == "SeqOpt with HiGHS for linearized programs"
+    @test MOI.get(SeqOpt.Optimizer(HiGHS.Optimizer), MOI.SolverName()) ==
+          "SeqOpt with HiGHS for linearized programs"
     return
 end
 

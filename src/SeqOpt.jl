@@ -7,9 +7,9 @@ struct Optimizer{O} <: MOI.AbstractOptimizer
     nonlinear::MOI.Nonlinear.Model
     linearized::O
     solution::Vector{Float64}
-    function Optimizer(optimizer_constuctor)
+    function Optimizer(opt_constuctor)
         nonlinear = MOI.Nonlinear.Model()
-        linearized = MOI.instantiate(optimizer_constuctor, with_bridge_type=Float64)
+        linearized = MOI.instantiate(opt_constuctor, with_bridge_type = Float64)
         return new{typeof(linearized)}(nonlinear, linearized, Float64[])
     end
 end
@@ -26,13 +26,11 @@ function MOI.supports_constraint(
     ::Type{F},
     ::Type{S},
 ) where {F<:MOI.AbstractFunction,S<:MOI.AbstractSet}
-    return MOI.supports_constraint(model.linearized) || MOI.supports_constraint(model.nonlinear)
+    return MOI.supports_constraint(model.linearized) ||
+           MOI.supports_constraint(model.nonlinear)
 end
 
-function MOI.is_valid(
-    model::Optimizer,
-    ci::MOI.ConstraintIndex,
-)
+function MOI.is_valid(model::Optimizer, ci::MOI.ConstraintIndex)
     return MOI.is_valid(model.linearized, ci)
 end
 
@@ -109,12 +107,22 @@ function MOI.get(model::Optimizer, attr::MOI.ListOfSupportedNonlinearOperators)
     return MOI.get(model.nonlinear, attr)
 end
 
-function _linearize(linearized, nonlinear, constraint_map, evaluator, I, J, vars, solution)
+function _linearize(
+    linearized,
+    nonlinear,
+    constraint_map,
+    evaluator,
+    I,
+    J,
+    vars,
+    solution,
+)
     if !isnothing(nonlinear.objective)
         obj_val = MOI.eval_objective(evaluator, solution)
         grad = similar(solution)
         MOI.eval_objective_gradient(evaluator, grad, solution)
-        aff = MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(grad, vars), obj_val)
+        aff =
+            MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(grad, vars), obj_val)
         MOI.set(linearized, MOI.ObjectiveFunction{typeof(aff)}(), aff)
     end
     g = zeros(length(nonlinear.constraints))
@@ -127,12 +135,18 @@ function _linearize(linearized, nonlinear, constraint_map, evaluator, I, J, vars
         G_row = G[row, :]
         aff = MOI.ScalarAffineFunction(
             MOI.ScalarAffineTerm{Float64}[
-                MOI.ScalarAffineTerm(val, vars[ind])
-                for (ind, val) in zip(SparseArrays.nonzeroinds(G_row), SparseArrays.nonzeros(G_row))
+                MOI.ScalarAffineTerm(val, vars[ind]) for (ind, val) in zip(
+                    SparseArrays.nonzeroinds(G_row),
+                    SparseArrays.nonzeros(G_row),
+                )
             ],
-            g[row]
+            g[row],
         )
-        aff, set = MOI.Utilities.normalize_constant(aff, con.set, allow_modify_function = true)
+        aff, set = MOI.Utilities.normalize_constant(
+            aff,
+            con.set,
+            allow_modify_function = true,
+        )
         if haskey(constraint_map, nl_ci)
             aff_ci = constraint_map[nl_ci]
             MOI.set(linearized, MOI.ConstraintFunction(), aff_ci, aff)
@@ -156,16 +170,38 @@ function MOI.optimize!(model::Optimizer)
         model.solution[i] = 0.0
     end
     constraint_map = Dict{MOI.Nonlinear.ConstraintIndex,MOI.ConstraintIndex}()
-    _linearize(model.linearized, model.nonlinear, constraint_map, evaluator, I, J, vars, model.solution)
+    _linearize(
+        model.linearized,
+        model.nonlinear,
+        constraint_map,
+        evaluator,
+        I,
+        J,
+        vars,
+        model.solution,
+    )
     for i in 1:2 # FIXME stopping crit
         MOI.optimize!(model.linearized)
         MOI.get!(model.solution, model.linearized, MOI.VariablePrimal(), vars)
-        _linearize(model.linearized, model.nonlinear, constraint_map, evaluator, I, J, vars, model.solution)
+        _linearize(
+            model.linearized,
+            model.nonlinear,
+            constraint_map,
+            evaluator,
+            I,
+            J,
+            vars,
+            model.solution,
+        )
     end
     return
 end
 
-function MOI.get(model::Optimizer, attr::MOI.VariablePrimal, vi::MOI.VariableIndex)
+function MOI.get(
+    model::Optimizer,
+    attr::MOI.VariablePrimal,
+    vi::MOI.VariableIndex,
+)
     return MOI.get(model.linearized, attr, vi)
 end
 
