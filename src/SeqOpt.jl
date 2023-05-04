@@ -1,17 +1,74 @@
 module SeqOpt
 
-import SparseArrays
+import LinearAlgebra, SparseArrays
 import MathOptInterface as MOI
+
+struct IterationLimit <: MOI.AbstractOptimizerAttribute end
+struct MinStepSize <: MOI.AbstractOptimizerAttribute end
+struct MaxStepSize <: MOI.AbstractOptimizerAttribute end
+
+const DEFAULT_OPTIONS = Dict{String,Any}(
+    "max_iters" => 100,
+    "ϵ_primal" => 1e-4,
+    "min_step_size" => 1.0,
+    "max_step_size" => 1.0,
+)
+
+const RAW_OPTIMIZE_NOT_CALLED = "Optimize not called"
+
+mutable struct Solution{T}
+    primal::Vector{T}
+    raw_status::String
+    termination_status::MOI.TerminationStatusCode
+    primal_status::MOI.ResultStatusCode
+    dual_status::MOI.ResultStatusCode
+    solve_time::Float64
+    iter::Int
+    function Solution{T}(k) where {T}
+        return new{T}(
+            zeros(T, k),
+            RAW_OPTIMIZE_NOT_CALLED,
+            MOI.OPTIMIZE_NOT_CALLED,
+            MOI.UNKNOWN_RESULT_STATUS,
+            MOI.UNKNOWN_RESULT_STATUS,
+            0.0,
+            0,
+        )
+    end
+end
 
 struct Optimizer{O} <: MOI.AbstractOptimizer
     nonlinear::MOI.Nonlinear.Model
+    map_linearized::MOI.Utilities.IndexMap
     linearized::O
-    solution::Vector{Float64}
+    solution::Union{Nothing,Solution{Float64}}
+    silent::Bool
+    options::Dict{String,Any}
     function Optimizer(opt_constuctor)
         nonlinear = MOI.Nonlinear.Model()
         linearized = MOI.instantiate(opt_constuctor, with_bridge_type = Float64)
-        return new{typeof(linearized)}(nonlinear, linearized, Float64[])
+        return new{typeof(linearized)}(
+            nonlinear,
+            MOI.Utilities.IndexMap(),
+            linearized,
+            Solution{Float64}(0),
+            false,
+            copy(DEFAULT_OPTIONS),
+        )
     end
+end
+
+function MOI.is_empty(optimizer::Optimizer)
+    return MOI.is_empty(optimizer.nonlinear) &&
+           MOI.is_empty(optimizer.linearized)
+end
+
+function MOI.empty!(optimizer::Optimizer)
+    MOI.empty!(optimizer.nonlinear)
+    MOI.empty!(optimizer.map_linearized)
+    MOI.empty!(optimizer.linearized)
+    optimizer.solution = nothing
+    return
 end
 
 function MOI.get(model::Optimizer, attr::MOI.SolverName)
@@ -19,15 +76,66 @@ function MOI.get(model::Optimizer, attr::MOI.SolverName)
     return "SeqOpt with $lin for linearized programs"
 end
 
-MOI.add_variable(model::Optimizer) = MOI.add_variable(model.linearized)
+# MOI.RawOptimizerAttribute
+
+function MOI.supports(optimizer::Optimizer, param::MOI.RawOptimizerAttribute)
+    return haskey(optimizer.options, param.name)
+end
+
+function MOI.set(optimizer::Optimizer, param::MOI.RawOptimizerAttribute, value)
+    if !MOI.supports(optimizer, param)
+        throw(MOI.UnsupportedAttribute(param))
+    end
+    optimizer.options[param.name] = value
+    return
+end
+
+function MOI.get(optimizer::Optimizer, param::MOI.AbstractOptimizerAttribute)
+    if !MOI.supports(optimizer, param)
+        throw(MOI.UnsupportedAttribute(param))
+    end
+    return optimizer.options[param.name]
+end
+
+# MOI.Silent
+
+MOI.supports(::Optimizer, ::MOI.Silent) = true
+
+function MOI.set(optimizer::Optimizer, ::MOI.Silent, value::Bool)
+    optimizer.silent = value
+    return
+end
+
+MOI.get(optimizer::Optimizer, ::MOI.Silent) = optimizer.silent
+
+# Variables
+
+function MOI.add_variable(model::Optimizer)
+    push!(model.solution.primal, 0.0)
+    vi = MOI.add_variable(model.linearized)
+    model.map_linearized[vi] = MOI.VariableIndex(length(model.solution.primal))
+    return vi
+end
+
+function MOI.set(
+    model::Optimizer,
+    ::MOI.VariablePrimalStart,
+    vi::MOI.VariableIndex,
+    value,
+)
+    model.solution.primal[model.map_linearized[vi].value] = value
+    return
+end
+
+# Constraints
 
 function MOI.supports_constraint(
     model::Optimizer,
     ::Type{F},
     ::Type{S},
 ) where {F<:MOI.AbstractFunction,S<:MOI.AbstractSet}
-    return MOI.supports_constraint(model.linearized) ||
-           MOI.supports_constraint(model.nonlinear)
+    return MOI.supports_constraint(model.linearized, F, S) ||
+           MOI.supports_constraint(model.nonlinear, F, S)
 end
 
 function MOI.is_valid(model::Optimizer, ci::MOI.ConstraintIndex)
@@ -158,6 +266,11 @@ function _linearize(
 end
 
 function MOI.optimize!(model::Optimizer)
+    sol = model.solution
+    options = model.options
+    max_iters = options["max_iters"]
+    min_step_size = options["min_step_size"]
+    max_step_size = options["max_step_size"]
     vars = MOI.get(model.linearized, MOI.ListOfVariableIndices())
     backend = MOI.Nonlinear.SparseReverseMode()
     evaluator = MOI.Nonlinear.Evaluator(model.nonlinear, backend, vars)
@@ -165,24 +278,9 @@ function MOI.optimize!(model::Optimizer)
     IJ = MOI.jacobian_structure(evaluator)
     I = getindex.(IJ, 1)
     J = getindex.(IJ, 2)
-    resize!(model.solution, length(vars))
-    for i in eachindex(model.solution)
-        model.solution[i] = 0.0
-    end
     constraint_map = Dict{MOI.Nonlinear.ConstraintIndex,MOI.ConstraintIndex}()
-    _linearize(
-        model.linearized,
-        model.nonlinear,
-        constraint_map,
-        evaluator,
-        I,
-        J,
-        vars,
-        model.solution,
-    )
-    for i in 1:2 # FIXME stopping crit
-        MOI.optimize!(model.linearized)
-        MOI.get!(model.solution, model.linearized, MOI.VariablePrimal(), vars)
+    Δprimal = Inf
+    sol.solve_time = @elapsed for _ in 1:max_iters
         _linearize(
             model.linearized,
             model.nonlinear,
@@ -191,10 +289,50 @@ function MOI.optimize!(model::Optimizer)
             I,
             J,
             vars,
-            model.solution,
+            model.solution.primal,
         )
+        MOI.optimize!(model.linearized)
+        new_primal = MOI.get(model.linearized, MOI.VariablePrimal(), vars)
+        Δprimal = new_primal - model.solution.primal
+        if min_step_size != max_step_size
+            error("Line search not supported yet")
+        else
+            @. model.solution.primal += min_step_size * Δprimal
+        end
+        if LinearAlgebra.norm(Δprimal) <= options["ϵ_primal"]
+            sol.raw_status = "Solved to stationarity"
+            sol.termination_status = MOI.LOCALLY_SOLVED
+            sol.primal_status = MOI.UNKNOWN_RESULT_STATUS
+            sol.dual_status = MOI.NO_SOLUTION
+            return
+        end
     end
+    sol.raw_status = "Maximum number of iterations ($max_iters) reached"
+    sol.termination_status = MOI.ITERATION_LIMIT
+    sol.primal_status = MOI.UNKNOWN_RESULT_STATUS
+    sol.dual_status = MOI.NO_SOLUTION
     return
+end
+
+function MOI.get(optimizer::Optimizer, ::MOI.SolveTimeSec)
+    return optimizer.solution.solve_time
+end
+
+function MOI.get(optimizer::Optimizer, ::MOI.RawStatusString)
+    return optimizer.solution.raw_status
+end
+
+# Implements getter for result value and statuses
+
+function MOI.get(optimizer::Optimizer, ::MOI.TerminationStatus)
+    return optimizer.solution.termination_status
+end
+
+function MOI.get(optimizer::Optimizer, attr::MOI.PrimalStatus)
+    if attr.result_index > MOI.get(optimizer, MOI.ResultCount())
+        return MOI.NO_SOLUTION
+    end
+    return optimizer.solution.primal_status
 end
 
 function MOI.get(
@@ -202,7 +340,23 @@ function MOI.get(
     attr::MOI.VariablePrimal,
     vi::MOI.VariableIndex,
 )
-    return MOI.get(model.linearized, attr, vi)
+    MOI.check_result_index_bounds(model, attr)
+    return model.solution.primal[model.map_linearized[vi].value]
+end
+
+function MOI.get(optimizer::Optimizer, attr::MOI.DualStatus)
+    if attr.result_index > MOI.get(optimizer, MOI.ResultCount())
+        return MOI.NO_SOLUTION
+    end
+    return optimizer.solution.dual_status
+end
+
+function MOI.get(optimizer::Optimizer, ::MOI.ResultCount)
+    if isnothing(optimizer.solution)
+        return 0
+    else
+        return 1
+    end
 end
 
 end # module SeqOpt
