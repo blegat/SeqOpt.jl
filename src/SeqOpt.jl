@@ -24,7 +24,7 @@ mutable struct Solution{T}
     dual_status::MOI.ResultStatusCode
     solve_time::Float64
     iter::Int
-    function Solution{T}(k) where T
+    function Solution{T}(k) where {T}
         return new{T}(
             zeros(T, k),
             RAW_OPTIMIZE_NOT_CALLED,
@@ -47,12 +47,20 @@ struct Optimizer{O} <: MOI.AbstractOptimizer
     function Optimizer(opt_constuctor)
         nonlinear = MOI.Nonlinear.Model()
         linearized = MOI.instantiate(opt_constuctor, with_bridge_type = Float64)
-        return new{typeof(linearized)}(nonlinear, MOI.Utilities.IndexMap(), linearized, Solution{Float64}(0), false, copy(DEFAULT_OPTIONS))
+        return new{typeof(linearized)}(
+            nonlinear,
+            MOI.Utilities.IndexMap(),
+            linearized,
+            Solution{Float64}(0),
+            false,
+            copy(DEFAULT_OPTIONS),
+        )
     end
 end
 
 function MOI.is_empty(optimizer::Optimizer)
-    return MOI.is_empty(optimizer.nonlinear) && MOI.is_empty(optimizer.linearized)
+    return MOI.is_empty(optimizer.nonlinear) &&
+           MOI.is_empty(optimizer.linearized)
 end
 
 function MOI.empty!(optimizer::Optimizer)
@@ -109,7 +117,12 @@ function MOI.add_variable(model::Optimizer)
     return vi
 end
 
-function MOI.set(model::Optimizer, ::MOI.VariablePrimalStart, vi::MOI.VariableIndex, value)
+function MOI.set(
+    model::Optimizer,
+    ::MOI.VariablePrimalStart,
+    vi::MOI.VariableIndex,
+    value,
+)
     model.solution.primal[model.map_linearized[vi].value] = value
     return
 end
@@ -301,7 +314,9 @@ function MOI.optimize!(model::Optimizer)
     return
 end
 
-MOI.get(optimizer::Optimizer, ::MOI.SolveTimeSec) = optimizer.solution.solve_time
+function MOI.get(optimizer::Optimizer, ::MOI.SolveTimeSec)
+    return optimizer.solution.solve_time
+end
 
 function MOI.get(optimizer::Optimizer, ::MOI.RawStatusString)
     return optimizer.solution.raw_status
@@ -343,6 +358,5 @@ function MOI.get(optimizer::Optimizer, ::MOI.ResultCount)
         return 1
     end
 end
-
 
 end # module SeqOpt
