@@ -33,7 +33,11 @@ end
 function test_PR2059()
     lp = MOI.OptimizerWithAttributes(HiGHS.Optimizer, MOI.Silent() => true)
     model = SeqOpt.Optimizer(lp)
+    MOI.set(model, MOI.RawOptimizerAttribute("min_step_size"), 0.5)
+    MOI.set(model, MOI.RawOptimizerAttribute("max_step_size"), 0.5)
+    MOI.set(model, MOI.RawOptimizerAttribute("max_iters"), 1)
     x = MOI.add_variable(model)
+    MOI.set(model, MOI.VariablePrimalStart(), x, 0.5)
     con_f = MOI.ScalarNonlinearFunction(:^, Any[x, 2])
     MOI.add_constraint(model, con_f, MOI.LessThan(1.0))
     MOI.set(model, MOI.ObjectiveSense(), MOI.MIN_SENSE)
@@ -42,7 +46,14 @@ function test_PR2059()
     obj_f = MOI.ScalarNonlinearFunction(:my_f, Any[x])
     MOI.set(model, MOI.ObjectiveFunction{typeof(obj_f)}(), obj_f)
     MOI.optimize!(model)
-    @test MOI.get(model, MOI.VariablePrimal(), x) isa Float64
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.ITERATION_LIMIT
+    @test MOI.get(model, MOI.VariablePrimal(), x) ≈ 0.625
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.ITERATION_LIMIT
+    @test MOI.get(model, MOI.VariablePrimal(), x) ≈ -0.0875
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.ITERATION_LIMIT
+    @test MOI.get(model, MOI.VariablePrimal(), x) ≈ 0.2
 end
 
 """
