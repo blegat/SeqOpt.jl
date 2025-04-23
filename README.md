@@ -1,6 +1,6 @@
 # SeqOpt.jl
 
-[![Build Status](https://github.com/blegat/SeqOpt.jl/workflows/CI/badge.svg?branch=main)](https://github.com/blegat/SeqOpt.jl/actions?query=workflow%3ACI)
+[![Build Status](https://github.com/blegat/SeqOpt.jl/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/blegat/SeqOpt.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/blegat/SeqOpt.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/blegat/SeqOpt.jl)
 
 **WARNING**: This package is still at its early stage of development.
