@@ -16,12 +16,10 @@ It implements a generalization of [Sequential quadratic programming](https://en.
 
 ## Installation
 
-SeqOpt currently relies on the in-development PR https://github.com/jump-dev/MathOptInterface.jl/pull/2059.
 Install SeqOpt using `Pkg.add`:
 
 ```julia
 import Pkg
-Pkg.add(PackageSpec(name="MathOptInterface", rev="od/nlp-expr"))
 Pkg.add("https://github.com/blegat/SeqOpt.jl")
 ```
 
