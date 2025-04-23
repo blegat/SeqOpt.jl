@@ -123,7 +123,13 @@ function MOI.add_variable(model::Optimizer)
     return vi
 end
 
-MOI.supports(::Optimizer, ::MOI.VariablePrimalStart, ::Type{MOI.VariableIndex}) = true
+function MOI.supports(
+    ::Optimizer,
+    ::MOI.VariablePrimalStart,
+    ::Type{MOI.VariableIndex},
+)
+    return true
+end
 
 function MOI.set(
     model::Optimizer,
@@ -137,12 +143,8 @@ end
 
 # Constraints
 
-const _NLScalarSet{T} = Union{
-    MOI.GreaterThan{T},
-    MOI.LessThan{T},
-    MOI.EqualTo{T},
-    MOI.Interval{T},
-}
+const _NLScalarSet{T} =
+    Union{MOI.GreaterThan{T},MOI.LessThan{T},MOI.EqualTo{T},MOI.Interval{T}}
 
 function MOI.supports_constraint(
     model::Optimizer,
@@ -154,7 +156,12 @@ end
 
 function MOI.supports_constraint(
     ::Optimizer,
-    ::Type{<:Union{MOI.ScalarQuadraticFunction{Float64},MOI.ScalarNonlinearFunction}},
+    ::Type{
+        <:Union{
+            MOI.ScalarQuadraticFunction{Float64},
+            MOI.ScalarNonlinearFunction,
+        },
+    },
     ::Type{<:_NLScalarSet{Float64}},
 )
     return true
@@ -200,7 +207,9 @@ function MOI.set(
     return
 end
 
-MOI.supports(model::Optimizer, attr::MOI.ObjectiveFunction) = MOI.supports(model.linearized, attr)
+function MOI.supports(model::Optimizer, attr::MOI.ObjectiveFunction)
+    return MOI.supports(model.linearized, attr)
+end
 
 function MOI.set(
     model::Optimizer,
@@ -212,7 +221,12 @@ function MOI.set(
     return
 end
 
-function MOI.supports(::Optimizer, ::MOI.ObjectiveFunction{<:Union{MOI.ScalarQuadraticFunction,MOI.ScalarNonlinearFunction}})
+function MOI.supports(
+    ::Optimizer,
+    ::MOI.ObjectiveFunction{
+        <:Union{MOI.ScalarQuadraticFunction,MOI.ScalarNonlinearFunction},
+    },
+)
     return true
 end
 
