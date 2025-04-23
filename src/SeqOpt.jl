@@ -25,16 +25,21 @@ mutable struct Solution{T}
     solve_time::Float64
     iter::Int
     function Solution{T}(k) where {T}
-        return new{T}(
-            zeros(T, k),
-            RAW_OPTIMIZE_NOT_CALLED,
-            MOI.OPTIMIZE_NOT_CALLED,
-            MOI.UNKNOWN_RESULT_STATUS,
-            MOI.UNKNOWN_RESULT_STATUS,
-            0.0,
-            0,
-        )
+        sol = new{T}(zeros(T, k))
+        empty!(sol)
+        return sol
     end
+end
+
+function Base.empty!(sol::Solution)
+    Base.empty!(sol.primal)
+    sol.raw_status = RAW_OPTIMIZE_NOT_CALLED
+    sol.termination_status = MOI.OPTIMIZE_NOT_CALLED
+    sol.primal_status = MOI.UNKNOWN_RESULT_STATUS
+    sol.dual_status = MOI.UNKNOWN_RESULT_STATUS
+    sol.solve_time = NaN
+    sol.iter = 0
+    return
 end
 
 struct Optimizer{O} <: MOI.AbstractOptimizer
@@ -65,9 +70,10 @@ end
 
 function MOI.empty!(optimizer::Optimizer)
     MOI.empty!(optimizer.nonlinear)
-    MOI.empty!(optimizer.map_linearized)
+    empty!(optimizer.map_linearized.var_map)
+    empty!(optimizer.map_linearized.con_map)
     MOI.empty!(optimizer.linearized)
-    optimizer.solution = nothing
+    empty!(optimizer.solution)
     return
 end
 
@@ -90,7 +96,7 @@ function MOI.set(optimizer::Optimizer, param::MOI.RawOptimizerAttribute, value)
     return
 end
 
-function MOI.get(optimizer::Optimizer, param::MOI.AbstractOptimizerAttribute)
+function MOI.get(optimizer::Optimizer, param::MOI.RawOptimizerAttribute)
     if !MOI.supports(optimizer, param)
         throw(MOI.UnsupportedAttribute(param))
     end
@@ -117,6 +123,14 @@ function MOI.add_variable(model::Optimizer)
     return vi
 end
 
+function MOI.supports(
+    ::Optimizer,
+    ::MOI.VariablePrimalStart,
+    ::Type{MOI.VariableIndex},
+)
+    return true
+end
+
 function MOI.set(
     model::Optimizer,
     ::MOI.VariablePrimalStart,
@@ -129,13 +143,28 @@ end
 
 # Constraints
 
+const _NLScalarSet{T} =
+    Union{MOI.GreaterThan{T},MOI.LessThan{T},MOI.EqualTo{T},MOI.Interval{T}}
+
 function MOI.supports_constraint(
     model::Optimizer,
     ::Type{F},
     ::Type{S},
 ) where {F<:MOI.AbstractFunction,S<:MOI.AbstractSet}
-    return MOI.supports_constraint(model.linearized, F, S) ||
-           MOI.supports_constraint(model.nonlinear, F, S)
+    return MOI.supports_constraint(model.linearized, F, S)
+end
+
+function MOI.supports_constraint(
+    ::Optimizer,
+    ::Type{
+        <:Union{
+            MOI.ScalarQuadraticFunction{Float64},
+            MOI.ScalarNonlinearFunction,
+        },
+    },
+    ::Type{<:_NLScalarSet{Float64}},
+)
+    return true
 end
 
 function MOI.is_valid(model::Optimizer, ci::MOI.ConstraintIndex)
@@ -160,12 +189,14 @@ end
 
 function MOI.add_constraint(
     model::Optimizer,
-    f::MOI.ScalarNonlinearFunction,
+    f::Union{MOI.ScalarNonlinearFunction,MOI.ScalarQuadraticFunction},
     s::MOI.AbstractScalarSet,
 )
     index = MOI.Nonlinear.add_constraint(model.nonlinear, f, s)
     return MOI.ConstraintIndex{typeof(f),typeof(s)}(index.value)
 end
+
+MOI.supports(::Optimizer, ::MOI.ObjectiveSense) = true
 
 function MOI.set(
     model::Optimizer,
@@ -176,6 +207,10 @@ function MOI.set(
     return
 end
 
+function MOI.supports(model::Optimizer, attr::MOI.ObjectiveFunction)
+    return MOI.supports(model.linearized, attr)
+end
+
 function MOI.set(
     model::Optimizer,
     attr::MOI.ObjectiveFunction{F},
@@ -184,6 +219,15 @@ function MOI.set(
     MOI.Nonlinear.set_objective(model.nonlinear, nothing)
     MOI.set(model.linearized, attr, func)
     return
+end
+
+function MOI.supports(
+    ::Optimizer,
+    ::MOI.ObjectiveFunction{
+        <:Union{MOI.ScalarQuadraticFunction,MOI.ScalarNonlinearFunction},
+    },
+)
+    return true
 end
 
 function MOI.set(
@@ -265,6 +309,12 @@ function _linearize(
     end
 end
 
+MOI.supports_incremental_interface(::Optimizer) = true
+
+function MOI.copy_to(model::Optimizer, src::MOI.ModelLike)
+    return MOI.Utilities.default_copy_to(model, src)
+end
+
 function MOI.optimize!(model::Optimizer)
     sol = model.solution
     options = model.options
@@ -279,7 +329,6 @@ function MOI.optimize!(model::Optimizer)
     I = getindex.(IJ, 1)
     J = getindex.(IJ, 2)
     constraint_map = Dict{MOI.Nonlinear.ConstraintIndex,MOI.ConstraintIndex}()
-    Δprimal = Inf
     sol.solve_time = @elapsed for _ in 1:max_iters
         _linearize(
             model.linearized,

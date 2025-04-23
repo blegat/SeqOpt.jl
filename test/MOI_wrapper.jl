@@ -1,10 +1,9 @@
 module TestMOI
 
+using Test
+using JuMP
 import SeqOpt
 import HiGHS
-using Test
-
-import MathOptInterface as MOI
 
 # See the docstring of MOI.Test.Config for other arguments.
 const CONFIG = MOI.Test.Config(
@@ -54,6 +53,21 @@ function test_PR2059()
     MOI.optimize!(model)
     @test MOI.get(model, MOI.TerminationStatus()) == MOI.ITERATION_LIMIT
     @test MOI.get(model, MOI.VariablePrimal(), x) ≈ 0.2
+end
+
+function test_maratos()
+    lp = optimizer_with_attributes(HiGHS.Optimizer, MOI.Silent() => true)
+    model = Model(() -> SeqOpt.Optimizer(lp))
+    @variable(model, x[1:2])
+    @objective(model, Min, 2(x[1]^2 + x[2]^2 - 1) - x[1])
+    @constraint(model, x[1]^2 + x[2]^2 == 1)
+    # The linearization actually finds [0, 0]...
+    set_attribute(model, "min_step_size", 0.0)
+    set_attribute(model, "max_step_size", 0.0)
+    set_attribute(model, "max_iters", 1)
+    set_start_value.(x, [1, 0])
+    optimize!(model)
+    @test value.(x) == [1, 0]
 end
 
 """
