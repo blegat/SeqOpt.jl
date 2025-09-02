@@ -27,7 +27,7 @@
     @test MOI.get(model, MOI.VariablePrimal(), x) ≈ 0.2
 end
 
- @testitem "Maratos" begin
+@testitem "Maratos" begin
     using JuMP
     import HiGHS
     lp = optimizer_with_attributes(HiGHS.Optimizer, MOI.Silent() => true)
