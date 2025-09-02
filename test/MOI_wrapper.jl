@@ -1,35 +1,7 @@
-module TestMOI
-
-using Test
-using JuMP
-import SeqOpt
-import HiGHS
-
-# See the docstring of MOI.Test.Config for other arguments.
-const CONFIG = MOI.Test.Config(
-    atol = 1e-6,
-    rtol = 1e-6,
-    optimal_status = MOI.LOCALLY_SOLVED,
-    exclude = Any[MOI.VariableName, MOI.delete],
-)
-
-"""
-    runtests()
-
-This function runs all functions in the this Module starting with `test_`.
-"""
-function runtests()
-    for name in names(@__MODULE__; all = true)
-        if startswith("$(name)", "test_")
-            @testset "$(name)" begin
-                getfield(@__MODULE__, name)()
-            end
-        end
-    end
-end
-
 # Test from https://github.com/jump-dev/MathOptInterface.jl/pull/2059
-function test_PR2059()
+@testitem "PR2059" begin
+    using JuMP
+    import HiGHS
     lp = MOI.OptimizerWithAttributes(HiGHS.Optimizer, MOI.Silent() => true)
     model = SeqOpt.Optimizer(lp)
     MOI.set(model, MOI.RawOptimizerAttribute("min_step_size"), 0.5)
@@ -55,7 +27,9 @@ function test_PR2059()
     @test MOI.get(model, MOI.VariablePrimal(), x) ≈ 0.2
 end
 
-function test_maratos()
+@testitem "Maratos" begin
+    using JuMP
+    import HiGHS
     lp = optimizer_with_attributes(HiGHS.Optimizer, MOI.Silent() => true)
     model = Model(() -> SeqOpt.Optimizer(lp))
     @variable(model, x[1:2])
@@ -70,19 +44,9 @@ function test_maratos()
     @test value.(x) == [1, 0]
 end
 
-"""
-    test_SolverName()
-
-You can also write new tests for solver-specific functionality. Write each new
-test as a function with a name beginning with `test_`.
-"""
-function test_SolverName()
+@testitem "SolverName" begin
+    import MathOptInterface as MOI
+    import HiGHS
     @test MOI.get(SeqOpt.Optimizer(HiGHS.Optimizer), MOI.SolverName()) ==
           "SeqOpt with HiGHS for linearized programs"
-    return
 end
-
-end # module TestMOI
-
-# This line at tne end of the file runs all the tests!
-TestMOI.runtests()
