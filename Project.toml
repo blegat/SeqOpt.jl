@@ -1,10 +1,13 @@
 name = "SeqOpt"
 uuid = "79dfa559-b203-42c8-b73e-25bbd7a8c2e6"
+version = "0.0.1"
 authors = ["Benoît Legat <benoit.legat@gmail.com>"]
 repo = "https://github.com/blegat/SeqOpt.jl.git"
-version = "0.0.1"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[compat]
+MathOptInterface = "1"
